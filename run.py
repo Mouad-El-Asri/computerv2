@@ -1,4 +1,3 @@
-import sys
 from computorv2 import *
 
 def main():
@@ -9,6 +8,7 @@ def main():
 			user_input: str = input("> ")
 			if user_input in ['exit', 'quit']:
 				break
+			assign_rational_nums(user_input)
 		except EOFError:
 			sys.exit('')
 
