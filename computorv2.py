@@ -37,10 +37,5 @@ def assign_rational_nums(user_input: str):
 			print(f'Error {error_index}: syntax error', file=sys.stderr)
 			error_index += 1
 	else:
-		print(f'> {0}')
-
-
-# multi-assignment a = b = c
-# operations * / + - % ** ^
-# error splitting
-# input like this 5x, x4, etc...
+		print(f'Error {error_index}: syntax error', file=sys.stderr)
+		error_index += 1
