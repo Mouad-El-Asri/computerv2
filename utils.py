@@ -1,4 +1,4 @@
-from typing import KeysView
+from typing import Any
 
 def is_integer(string: str) -> bool:
 	"""
