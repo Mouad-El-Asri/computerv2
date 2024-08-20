@@ -1,24 +1,44 @@
 import sys
 import re
+from typing import Any, Match
 from utils import *
 
 variables: dict[str, int | float] = {}
 error_index: int = 0
 
 def print_error_message(error_message: str) -> None:
+	"""
+		Prints an error message to standard error and increments the global error index.
+
+		Args:
+			error_message (str): The error message to be displayed.
+
+		Returns:
+			None
+	"""
 	global error_index
 	print(error_message, file=sys.stderr)
 	error_index += 1
 
 
 def extract_and_solve(expression: str, operator: str) -> str:
-	split_index = expression.find(operator)
+	"""
+		Extracts operands surrounding a given operator in an expression and computes the result.
 
-	left_part = expression[:split_index]
-	right_part = expression[split_index + len(operator):]
+    	Args:
+    	    expression (str): The mathematical expression.
+    	    operator (str): The operator to search for and apply in the expression.
 
-	left_match = re.search(r'[\d\w]+$', left_part)
-	right_match = re.search(r'^[\d\w]+', right_part)
+    	Returns:
+    	    str: The expression with the operation replaced by the computed result or an error message.
+    """
+	split_index: int = expression.find(operator)
+
+	left_part: str = expression[:split_index]
+	right_part: str = expression[split_index + len(operator):]
+
+	left_match: Match[str] | None = re.search(r'[\d\w]+$', left_part)
+	right_match: Match[str] | None = re.search(r'^[\d\w]+', right_part)
 		
 	left_operand: str = left_match.group() if left_match else ''
 	right_operand: str = right_match.group() if right_match else ''
@@ -42,7 +62,7 @@ def extract_and_solve(expression: str, operator: str) -> str:
 		right_value = variables.get(right_operand, 0)
 
 	result: int | float
-	if operator == '**':
+	if operator == '^':
 		result = left_value ** right_value
 	elif operator == '*':
 		result = left_value * right_value
@@ -58,20 +78,38 @@ def extract_and_solve(expression: str, operator: str) -> str:
 
 
 def handle_operator(expression: str) -> bool | str:
+	"""
+		Validates and evaluates a mathematical expression involving basic operators.
+
+		Args:
+			expression (str): The mathematical expression to validate and solve.
+
+		Returns:
+    		bool | str: The evaluated result as a string if valid; otherwise, returns False in case of errors.
+    """
 	expression = expression.replace(' ', '')
-	input_pattern: str = r'^[a-zA-Z0-9\.\*\+\-\/\% ]+$'
+	input_pattern: str = r'^[a-zA-Z0-9\.\*\+\-\/\%\^ ]+$'
 	if not bool(re.fullmatch(input_pattern, expression)):
 		print_error_message(f'Error {error_index}: syntax error')
 		return False
-	elif expression[0] in {'+', '*', '/', '%', '**'} or \
-		expression[-1] in {'+', '*', '/', '%', '**'}:
+	elif expression[0] in {'+', '*', '/', '%', '^'} or \
+		expression[-1] in {'+', '*', '/', '%', '^'}:
 		print_error_message(f'Error {error_index}: syntax error')
 		return False
 
 	def solve_operation(expression) -> str:
-		Exponentiation = '**'
-		Multiplicative = ['*', '/', '%']
-		Additive = ['+', '-']
+		"""
+			Recursively evaluates mathematical operations in the expression.
+
+			Args:
+			    expression (str): The mathematical expression to evaluate.
+		
+			Returns:
+			    str: The expression with evaluated results or the original expression if no operators are found.
+		"""
+		Exponentiation: str = '^'
+		Multiplicative: list[str] = ['*', '/', '%']
+		Additive: list[str] = ['+', '-']
 
 		if Exponentiation in expression:
 			expression = extract_and_solve(expression, Exponentiation)
@@ -87,7 +125,7 @@ def handle_operator(expression: str) -> bool | str:
 			return expression
 		return solve_operation(expression)
 
-	result = solve_operation(expression)
+	result: str = solve_operation(expression)
 	if result == "Error":
 		return False
 
@@ -95,6 +133,15 @@ def handle_operator(expression: str) -> bool | str:
 
 
 def evaluate_string_or_number(user_input: str) -> bool:
+	"""
+		Evaluates and prints the result of a number, variable, or expression.
+
+		Args:
+			user_input (str): The input to evaluate, which can be a number, variable, or expression.
+
+		Returns:
+			bool: True if the input was valid and processed; False otherwise.
+	"""
 	global error_index
 	if is_integer(user_input) or is_float(user_input):
 		print(f'> {int(user_input) if is_integer(user_input) else float(user_input)}')
@@ -105,7 +152,7 @@ def evaluate_string_or_number(user_input: str) -> bool:
 		else:
 			print(f'> {variables.get(user_input, 0)}')
 		return True
-	elif any(operator in user_input for operator in {'+', '-', '*', '/', '%', '**'}):
+	elif any(operator in user_input for operator in {'+', '-', '*', '/', '%', '^'}):
 		operation_result: str | bool = handle_operator(user_input)
 		if False is operation_result:
 			return True
@@ -115,6 +162,16 @@ def evaluate_string_or_number(user_input: str) -> bool:
 
 
 def assign_rational_nums(user_input: str) -> None:
+	"""
+		Assigns a value to a variable based on the user input
+		or just print it if it's not an assignment expression.
+
+		Args:
+			user_input (str): The input string.
+
+		Returns:
+			None
+    """
 	global error_index
 	if '=' not in user_input and evaluate_string_or_number(user_input):
 		return
@@ -124,7 +181,7 @@ def assign_rational_nums(user_input: str) -> None:
 
 	first_item: Any = var_list[0].strip()
 
-	if any(operator in first_item for operator in {'+', '-', '*', '/', '%', '**'}):
+	if any(operator in first_item for operator in {'+', '-', '*', '/', '%', '^'}):
 		first_item = handle_operator(first_item)
 		if False is first_item:
 			return
