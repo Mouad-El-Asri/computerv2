@@ -5,6 +5,7 @@ from utils import *
 
 variables: dict[str, int | float] = {}
 error_index: int = 0
+imagiary_expressions: list[str] = []
 
 def print_error_message(error_message: str) -> None:
 	"""
@@ -37,28 +38,35 @@ def extract_and_solve(expression: str, operator: str) -> str:
 	left_part: str = expression[:split_index]
 	right_part: str = expression[split_index + len(operator):]
 
-	left_match: Match[str] | None = re.search(r'[\d\w]+$', left_part)
-	right_match: Match[str] | None = re.search(r'^[\d\w]+', right_part)
+	left_match: Match[str] | None = re.search(r'[\d\w\-]+$', left_part)
+	right_match: Match[str] | None = re.search(r'^[\d\w\-]+', right_part)
 		
 	left_operand: str = left_match.group() if left_match else ''
 	right_operand: str = right_match.group() if right_match else ''
 
 	operation: str = left_operand + operator + right_operand
 
+	left_value: float | int = 0
+	right_value: float | int = 0
+
 	if is_integer(left_operand) or is_float(left_operand):
-		left_value: float | int = int(left_operand) if is_integer(left_operand) else float(left_operand)
+		left_value = int(left_operand) if is_integer(left_operand) else float(left_operand)
 	elif left_operand.isalpha():
 		if left_operand == 'i':
-			print_error_message(f'Error {error_index}: \'i\' cannot be assigned or used as a variable name.')
-			return "Error"
+			if operator == '*':
+				operation = left_operand + right_operand
+			imagiary_expressions.append(operation)
+			return ''
 		left_value = variables.get(left_operand, 0)
 
 	if is_integer(right_operand) or is_float(right_operand):
-		right_value: int | float = int(right_operand) if is_integer(right_operand) else float(right_operand)
+		right_value = int(right_operand) if is_integer(right_operand) else float(right_operand)
 	elif right_operand.isalpha():
 		if right_operand == 'i':
-			print_error_message(f'Error {error_index}: \'i\' cannot be assigned or used as a variable name.')
-			return "Error"
+			if operator == '*':
+				operation = left_operand + right_operand
+			imagiary_expressions.append(operation)
+			return ''
 		right_value = variables.get(right_operand, 0)
 
 	result: int | float
@@ -92,8 +100,8 @@ def handle_operator(expression: str) -> bool | str:
 	if not bool(re.fullmatch(input_pattern, expression)):
 		print_error_message(f'Error {error_index}: syntax error')
 		return False
-	elif expression[0] in {'+', '*', '/', '%', '^'} or \
-		expression[-1] in {'+', '*', '/', '%', '^'}:
+	elif expression[0] in {'*', '/', '%', '^'} or \
+		expression[-1] in {'+', '-', '*', '/', '%', '^'}:
 		print_error_message(f'Error {error_index}: syntax error')
 		return False
 
@@ -110,7 +118,6 @@ def handle_operator(expression: str) -> bool | str:
 		Exponentiation: str = '^'
 		Multiplicative: list[str] = ['*', '/', '%']
 		Additive: list[str] = ['+', '-']
-
 		if Exponentiation in expression:
 			expression = extract_and_solve(expression, Exponentiation)
 		elif any(Operator in expression for Operator in Multiplicative):
@@ -118,8 +125,10 @@ def handle_operator(expression: str) -> bool | str:
 				if Operator in expression:
 					expression = extract_and_solve(expression, Operator)
 		elif any(Operator in expression for Operator in Additive):
+			if is_integer(expression) or is_float(expression):
+				return expression
 			for Operator in Additive:
-				if Operator in expression and expression[0] != Operator:
+				if Operator in expression:
 					expression = extract_and_solve(expression, Operator)
 		else:
 			return expression
@@ -128,7 +137,9 @@ def handle_operator(expression: str) -> bool | str:
 	result: str = solve_operation(expression)
 	if result == "Error":
 		return False
-
+	# for el in imagiary_expressions:
+	# 	result += el
+	# 	imagiary_expressions.remove(el)
 	return result
 
 
@@ -150,7 +161,7 @@ def evaluate_string_or_number(user_input: str) -> bool:
 		if user_input == 'i':
 			print_error_message(f'Error {error_index}: \'i\' cannot be assigned or used as a variable name.')
 		else:
-			print(f'> {variables.get(user_input, 0)}')
+			print(f'> {variables.get(user_input.lower(), 0)}')
 		return True
 	elif any(operator in user_input for operator in {'+', '-', '*', '/', '%', '^'}):
 		operation_result: str | bool = handle_operator(user_input)
@@ -196,7 +207,7 @@ def assign_rational_nums(user_input: str) -> None:
 	last_var: str | None = None
 
 	for var in var_list[1:]:
-		var = var.strip()
+		var = var.strip().lower()
 		if var == 'i':
 			print_error_message(f'Error {error_index}: \'i\' cannot be assigned or used as a variable name.')
 			return
