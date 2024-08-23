@@ -5,7 +5,6 @@ from utils import *
 
 variables: dict[str, int | float] = {}
 error_index: int = 0
-imagiary_expressions: list[str] = []
 
 def print_error_message(error_message: str) -> None:
 	"""
@@ -20,6 +19,21 @@ def print_error_message(error_message: str) -> None:
 	global error_index
 	print(error_message, file=sys.stderr)
 	error_index += 1
+
+
+def extract_complex_numbers(expression: str) -> str :
+	expression = expression.replace('i', 'j') if is_integer(expression[expression.find('i') - 1]) else expression.replace('i', '1j')
+	try:
+		result = eval(expression)
+		result = str(result).replace('j', 'i')[1:-1]
+		result = result.replace('1i', 'i')
+		if '+' in result:
+			result = result.replace('+', ' + ')
+		elif '-' in result:
+			result = result.replace('-', ' - ')
+		return result
+	except Exception:
+		print_error_message(f'Error {error_index}: syntax error')
 
 
 def extract_and_solve(expression: str, operator: str) -> str:
@@ -44,6 +58,10 @@ def extract_and_solve(expression: str, operator: str) -> str:
 	left_operand: str = left_match.group() if left_match else ''
 	right_operand: str = right_match.group() if right_match else ''
 
+	if not left_operand or not right_operand:
+		print_error_message(f'Error {error_index}: syntax error')
+		return 'Error'
+
 	operation: str = left_operand + operator + right_operand
 
 	left_value: float | int = 0
@@ -52,22 +70,18 @@ def extract_and_solve(expression: str, operator: str) -> str:
 	if is_integer(left_operand) or is_float(left_operand):
 		left_value = int(left_operand) if is_integer(left_operand) else float(left_operand)
 	elif left_operand.isalpha():
-		if left_operand == 'i':
-			if operator == '*':
-				operation = left_operand + right_operand
-			imagiary_expressions.append(operation)
-			return ''
 		left_value = variables.get(left_operand, 0)
+	else:
+		print_error_message(f'Error {error_index}: syntax error')
+		return 'Error'
 
 	if is_integer(right_operand) or is_float(right_operand):
 		right_value = int(right_operand) if is_integer(right_operand) else float(right_operand)
 	elif right_operand.isalpha():
-		if right_operand == 'i':
-			if operator == '*':
-				operation = left_operand + right_operand
-			imagiary_expressions.append(operation)
-			return ''
 		right_value = variables.get(right_operand, 0)
+	else:
+		print_error_message(f'Error {error_index}: syntax error')
+		return 'Error'
 
 	result: int | float
 	if operator == '^':
@@ -82,6 +96,7 @@ def extract_and_solve(expression: str, operator: str) -> str:
 		result = left_value + right_value
 	elif operator == '-':
 		result = left_value - right_value
+
 	return expression.replace(operation, str(result))
 
 
@@ -104,6 +119,9 @@ def handle_operator(expression: str) -> bool | str:
 		expression[-1] in {'+', '-', '*', '/', '%', '^'}:
 		print_error_message(f'Error {error_index}: syntax error')
 		return False
+	
+	if 'i' in expression:
+		return extract_complex_numbers(expression)
 
 	def solve_operation(expression) -> str:
 		"""
@@ -137,9 +155,6 @@ def handle_operator(expression: str) -> bool | str:
 	result: str = solve_operation(expression)
 	if result == "Error":
 		return False
-	# for el in imagiary_expressions:
-	# 	result += el
-	# 	imagiary_expressions.remove(el)
 	return result
 
 
@@ -196,11 +211,11 @@ def assign_rational_nums(user_input: str) -> None:
 		first_item = handle_operator(first_item)
 		if False is first_item:
 			return
-    
+
 	if first_item == 'i':
 		print_error_message(f'Error {error_index}: \'i\' cannot be assigned or used as a variable name.')
 		return
-	elif not first_item.isalpha() and not (is_integer(first_item) or is_float(first_item)):
+	elif not first_item.isalpha() and not (is_integer(first_item) or is_float(first_item)) and not 'i' in first_item:
 		print_error_message(f'Error {error_index}: syntax error')
 		return
 	
@@ -221,6 +236,8 @@ def assign_rational_nums(user_input: str) -> None:
 			variables[var] = variables.get(first_item, 0)
 		elif is_integer(first_item) or is_float(first_item):
 			variables[var] = int(first_item) if is_integer(first_item) else float(first_item)
+		elif 'i' in first_item:
+			variables[var] = first_item
 		else:
 			print_error_message(f'Error {error_index}: syntax error')
 			return
