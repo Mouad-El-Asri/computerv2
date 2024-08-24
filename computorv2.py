@@ -22,11 +22,24 @@ def print_error_message(error_message: str) -> None:
 
 
 def extract_complex_numbers(expression: str) -> str :
+	"""
+		Extracts and formats complex numbers from a given string expression.
+
+		Args:
+			expression (str): A string containing a mathematical expression with complex numbers.
+
+		Returns:
+			str: A formatted string representing the complex numbers with 'i' as the imaginary unit.
+    """
 	expression = expression.replace('i', 'j') if is_integer(expression[expression.find('i') - 1]) else expression.replace('i', '1j')
+	pattern = r'\b[a-z]+\b'
+	matches = re.findall(pattern, expression.lower())
+	for var in matches:
+		if var.isalpha() and var != 'j':
+			expression = expression.lower().replace(var, str(variables.get(var, 0)))
 	try:
-		result = eval(expression)
-		result = str(result).replace('j', 'i')[1:-1]
-		result = result.replace('1i', 'i')
+		result: str = eval(expression)
+		result = str(result).replace('(', '').replace(')', '').replace('j', 'i').replace('1i', 'i')
 		if '+' in result:
 			result = result.replace('+', ' + ')
 		elif '-' in result:
@@ -133,21 +146,28 @@ def handle_operator(expression: str) -> bool | str:
 			Returns:
 			    str: The expression with evaluated results or the original expression if no operators are found.
 		"""
-		Exponentiation: str = '^'
-		Multiplicative: list[str] = ['*', '/', '%']
-		Additive: list[str] = ['+', '-']
-		if Exponentiation in expression:
-			expression = extract_and_solve(expression, Exponentiation)
-		elif any(Operator in expression for Operator in Multiplicative):
-			for Operator in Multiplicative:
-				if Operator in expression:
-					expression = extract_and_solve(expression, Operator)
-		elif any(Operator in expression for Operator in Additive):
-			if is_integer(expression) or is_float(expression):
-				return expression
-			for Operator in Additive:
-				if Operator in expression:
-					expression = extract_and_solve(expression, Operator)
+		if expression[0] == '+':
+			expression = expression[1:]
+
+		if is_integer(expression) or is_float(expression):
+			return expression
+
+		exponentiation: str = '^'
+		multiplicative: list[str] = ['*', '/', '%']
+		additive: list[str] = ['+', '-']
+
+		if exponentiation in expression:
+			expression = extract_and_solve(expression, exponentiation)
+		elif any(operator in expression for operator in multiplicative):
+			for operator in multiplicative:
+				if operator in expression:
+					expression = extract_and_solve(expression, operator)
+					break
+		elif any(operator in expression for operator in additive):
+			for operator in additive:
+				if operator in expression:
+					expression = extract_and_solve(expression, operator)
+					break
 		else:
 			return expression
 		return solve_operation(expression)
@@ -170,19 +190,19 @@ def evaluate_string_or_number(user_input: str) -> bool:
 	"""
 	global error_index
 	if is_integer(user_input) or is_float(user_input):
-		print(f'> {int(user_input) if is_integer(user_input) else float(user_input)}')
+		print(f'>> {int(user_input) if is_integer(user_input) else float(user_input)}')
 		return True
 	elif user_input.isalpha():
 		if user_input == 'i':
 			print_error_message(f'Error {error_index}: \'i\' cannot be assigned or used as a variable name.')
 		else:
-			print(f'> {variables.get(user_input.lower(), 0)}')
+			print(f'>> {variables.get(user_input.lower(), 0)}')
 		return True
 	elif any(operator in user_input for operator in {'+', '-', '*', '/', '%', '^'}):
 		operation_result: str | bool = handle_operator(user_input)
 		if False is operation_result:
 			return True
-		print(f'> {operation_result}')
+		print(f'>> {operation_result}')
 		return True
 	return False
 
@@ -242,6 +262,6 @@ def assign_rational_nums(user_input: str) -> None:
 			print_error_message(f'Error {error_index}: syntax error')
 			return
 	if last_var:
-		print(f'> {variables[var]}')
+		print(f'>> {variables[var]}')
 	else:
 		print_error_message(f'Error {error_index}: syntax error')

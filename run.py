@@ -2,7 +2,7 @@ from computorv2 import *
 import signal
 
 def signal_handler(sig, frame):
-	print('\n> (interrupt) use \'quit\' or \'exit\' to exit.\n> ', end='')
+	print('\n>> (interrupt) use \'quit\' or \'exit\' to exit.\n>> ', end='')
 
 signal.signal(signal.SIGINT, signal_handler)
 
@@ -12,10 +12,10 @@ def main():
 	history: list[str] = []
 	while True:
 		try:
-			user_input: str = input("> ")
+			user_input: str = input(">> ")
 			if user_input == 'history':
 				for count, el in enumerate(history):
-					print(f'> {count}-> {el}')
+					print(f'>> {count}-> {el}')
 				continue
 			history.append(user_input)
 			if not user_input.strip():
