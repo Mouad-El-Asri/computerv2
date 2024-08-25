@@ -22,7 +22,7 @@ def main():
 				continue
 			if user_input in ['exit', 'quit']:
 				break
-			assign_rational_nums(user_input)
+			process_variable_assignment(user_input)
 		except EOFError:
 			sys.exit('')
 

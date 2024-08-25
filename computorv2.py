@@ -2,9 +2,11 @@ import sys
 import re
 from typing import Any, Match
 from utils import *
+from computorv1 import *
 
 variables: dict[str, int | float] = {}
 error_index: int = 0
+
 
 def print_error_message(error_message: str) -> None:
 	"""
@@ -21,7 +23,7 @@ def print_error_message(error_message: str) -> None:
 	error_index += 1
 
 
-def extract_complex_numbers(expression: str) -> str :
+def extract_complex_numbers(expression: str) -> str | bool :
 	"""
 		Extracts and formats complex numbers from a given string expression.
 
@@ -47,6 +49,7 @@ def extract_complex_numbers(expression: str) -> str :
 		return result
 	except Exception:
 		print_error_message(f'Error {error_index}: syntax error')
+		return False
 
 
 def extract_and_solve(expression: str, operator: str) -> str:
@@ -207,10 +210,34 @@ def evaluate_string_or_number(user_input: str) -> bool:
 	return False
 
 
-def assign_rational_nums(user_input: str) -> None:
+def handle_function(func_list: list[str], func_var_name: str) -> None:
+	if len(func_list) != 2:
+		print_error_message(f'Error {error_index}: syntax error')
+		return
+
+	func = func_list[1].strip()
+	pattern = r'\b[a-z]+\b'
+	matches = re.findall(pattern, func.lower())
+	for var in matches:
+		if var != func_var_name and var not in variables and var != 'i':
+			print_error_message(f'Error {error_index}: syntax error')
+			return
+		elif var in variables:
+			func = func.replace(var, str(variables[var]))
+	pattern = rf'([0-9]+)({func_var_name})'
+	replacement = r'\1 * \2'
+	func = re.sub(pattern, replacement, func)
+	pattern = r'\s*\*\s*'
+	replacement = ' * '
+	func = re.sub(pattern, replacement, func)
+	
+	print(f'>> {func}')
+
+
+def process_variable_assignment(user_input: str) -> None:
 	"""
-		Assigns a value to a variable based on the user input
-		or just print it if it's not an assignment expression.
+		Parses and processes a variable assignment from the user input.
+    	Validates the input for syntax and variable name rules, evaluates expressions, and updates global variables.
 
 		Args:
 			user_input (str): The input string.
@@ -223,8 +250,12 @@ def assign_rational_nums(user_input: str) -> None:
 		return
 	
 	var_list: list[str] = user_input.strip().split('=')
-	var_list.reverse()
+	pattern: str = r'^[a-zA-Z]+\(([a-zA-Z]+)\)$'
+	match: Match[str] | None = re.match(pattern, var_list[0].strip())
+	if (bool(match) == True):
+		return handle_function(var_list, match.group(1))
 
+	var_list.reverse()
 	first_item: Any = var_list[0].strip()
 
 	if any(operator in first_item for operator in {'+', '-', '*', '/', '%', '^'}):
@@ -257,7 +288,7 @@ def assign_rational_nums(user_input: str) -> None:
 		elif is_integer(first_item) or is_float(first_item):
 			variables[var] = int(first_item) if is_integer(first_item) else float(first_item)
 		elif 'i' in first_item:
-			variables[var] = first_item
+			variables[var] = first_item.replace(' ', '')
 		else:
 			print_error_message(f'Error {error_index}: syntax error')
 			return
