@@ -2,6 +2,8 @@ import sys
 import re
 from typing import Any, Match
 from utils import *
+import numpy
+import json
 
 variables: dict[str, int | float] = {}
 error_index: int = 0
@@ -126,6 +128,22 @@ def handle_operator(expression: str) -> bool | str:
 		Returns:
     		bool | str: The evaluated result as a string if valid; otherwise, returns False in case of errors.
     """
+	try:
+		if is_valid_matrice(expression):
+			matrices = expression.replace(';', ',').split('**')
+			np_matrice = numpy.array(json.loads(matrices[0]))
+			for matrice in matrices[1:]:
+				np_matrice = numpy.array(json.loads(matrice.strip())) * np_matrice
+			result = ''
+			for row in np_matrice:
+				formatted_row = '[ ' + ' , '.join(map(str, row)) + ' ]'
+				if result:
+					result += '\n   '
+				result += formatted_row
+			return result
+	except ValueError:
+		print_error_message(f'   Error {error_index}: value error')
+		return False
 	expression = expression.replace(' ', '')
 	input_pattern: str = r'^[a-zA-Z0-9\.\*\+\-\/\%\^ ]+$'
 	if not bool(re.fullmatch(input_pattern, expression)):
@@ -220,7 +238,8 @@ def evaluate_string_or_number_or_matrice(user_input: str) -> bool:
 def is_valid_matrice(expression: str) -> bool:
 	expression = expression.replace(' ', '')
 	matrice_pattern = r'\[\[\d+(,\d+)*\](;\[\d+(,\d+)*\])*\]'
-	return bool(re.fullmatch(matrice_pattern, expression))
+	matrice_multip_pattern = matrice_pattern + r'\s*\*\*\s*' + matrice_pattern
+	return bool(re.fullmatch(matrice_pattern, expression)) or bool(re.fullmatch(matrice_multip_pattern, expression))
 
 
 def handle_function(func_list: list[str], func_var_name: str) -> None:
@@ -271,7 +290,10 @@ def process_variable_assignment(user_input: str) -> None:
 	var_list.reverse()
 	first_item: Any = var_list[0].strip()
 
+	is_matrice = False
 	if any(operator in first_item for operator in {'+', '-', '*', '/', '%', '^'}):
+		if '**' in first_item:
+			is_matrice = True
 		first_item = handle_operator(first_item)
 		if False is first_item:
 			return
@@ -280,12 +302,11 @@ def process_variable_assignment(user_input: str) -> None:
 		print_error_message(f'   Error {error_index}: \'i\' cannot be assigned or used as a variable name.')
 		return
 	elif not first_item.isalpha() and not (is_integer(first_item) or \
-	is_float(first_item)) and not 'i' in first_item and not is_valid_matrice(first_item):
+	is_float(first_item)) and not 'i' in first_item and not is_valid_matrice(first_item) and not is_matrice:
 		print_error_message(f'   Error {error_index}: syntax error')
 		return
 	
 	last_var: str | None = None
-	is_matrice = False
 
 	for var in var_list[1:]:
 		var = var.strip().lower()
@@ -304,8 +325,12 @@ def process_variable_assignment(user_input: str) -> None:
 			variables[var] = int(first_item) if is_integer(first_item) else float(first_item)
 		elif 'i' in first_item:
 			variables[var] = first_item.replace(' ', '') if not any(op in first_item for op in {'+', '-', '*', '/', '%', '^'}) else first_item
-		elif is_valid_matrice(first_item):
+		elif is_valid_matrice(first_item) or is_matrice:
 			matrice = ''
+			if is_matrice:
+				variables[var] = first_item
+				print(f'   {first_item}')
+				break
 			is_matrice = True
 			for el in first_item.replace(' ', '')[1:-1].split(';'):
 				pattern = r'(\d+)'
