@@ -39,7 +39,7 @@ def extract_complex_numbers(expression: str) -> str | bool :
 	matches = re.findall(pattern, expression.lower())
 	for var in matches:
 		if var.isalpha() and var != 'j':
-			expression = expression.lower().replace(var, str(variables.get(var, 0)))
+			expression = expression.lower().replace(var, str(variables.get(var.lower(), 0)))
 	try:
 		result: str = eval(expression)
 		result = str(result).replace('(', '').replace(')', '').replace('j', 'i').replace('1i', 'i')
@@ -70,8 +70,8 @@ def extract_and_solve(expression: str, operator: str) -> str:
 	left_part: str = expression[:split_index]
 	right_part: str = expression[split_index + len(operator):]
 
-	left_match: Match[str] | None = re.search(r'[\d\w\-]+$', left_part)
-	right_match: Match[str] | None = re.search(r'^[\d\w\-]+', right_part)
+	left_match: Match[str] | None = re.search(r'[\d\w\.]+$', left_part)
+	right_match: Match[str] | None = re.search(r'^[\d\w\.]+', right_part)
 		
 	left_operand: str = left_match.group() if left_match else ''
 	right_operand: str = right_match.group() if right_match else ''
@@ -88,7 +88,7 @@ def extract_and_solve(expression: str, operator: str) -> str:
 	if is_integer(left_operand) or is_float(left_operand):
 		left_value = int(left_operand) if is_integer(left_operand) else float(left_operand)
 	elif left_operand.isalpha():
-		left_value = variables.get(left_operand, 0)
+		left_value = variables.get(left_operand.lower(), 0)
 	else:
 		print_error_message(f'   Error {error_index}: syntax error')
 		return 'Error'
@@ -96,7 +96,7 @@ def extract_and_solve(expression: str, operator: str) -> str:
 	if is_integer(right_operand) or is_float(right_operand):
 		right_value = int(right_operand) if is_integer(right_operand) else float(right_operand)
 	elif right_operand.isalpha():
-		right_value = variables.get(right_operand, 0)
+		right_value = variables.get(right_operand.lower(), 0)
 	else:
 		print_error_message(f'   Error {error_index}: syntax error')
 		return 'Error'
@@ -114,7 +114,6 @@ def extract_and_solve(expression: str, operator: str) -> str:
 		result = left_value + right_value
 	elif operator == '-':
 		result = left_value - right_value
-
 	return expression.replace(operation, str(result))
 
 
@@ -144,8 +143,9 @@ def handle_operator(expression: str) -> bool | str:
 	except ValueError:
 		print_error_message(f'   Error {error_index}: value error')
 		return False
+
 	expression = expression.replace(' ', '')
-	input_pattern: str = r'^[a-zA-Z0-9\.\*\+\-\/\%\^ ]+$'
+	input_pattern: str = r'^[a-zA-Z0-9\.\*\+\-\/\%\^\)\() ]+$'
 	if not bool(re.fullmatch(input_pattern, expression)):
 		print_error_message(f'   Error {error_index}: syntax error')
 		return False
@@ -157,6 +157,10 @@ def handle_operator(expression: str) -> bool | str:
 	if 'i' in expression:
 		return extract_complex_numbers(expression)
 
+	pattern = r'\([^)]*\)'
+	parentheses_content = re.findall(pattern, expression)
+	for content in parentheses_content:
+		expression = expression.replace(content, handle_operator(content[1:-1]))
 	def solve_operation(expression) -> str:
 		"""
 			Recursively evaluates mathematical operations in the expression.
@@ -185,10 +189,11 @@ def handle_operator(expression: str) -> bool | str:
 					expression = extract_and_solve(expression, operator)
 					break
 		elif any(operator in expression for operator in additive):
-			for operator in additive:
-				if operator in expression:
-					expression = extract_and_solve(expression, operator)
-					break
+			pattern = r'\b[a-z]+\b'
+			matches = re.findall(pattern, expression.lower())
+			for var in matches:
+				expression = expression.lower().replace(var, str(variables.get(var.lower(), 0)))
+			expression = str(eval(expression))
 		else:
 			return expression
 		return solve_operation(expression)
@@ -243,26 +248,29 @@ def is_valid_matrice(expression: str) -> bool:
 
 
 def handle_function(func_list: list[str], func_var_name: str) -> None:
+	func_name = func_list[0].lower().split('(')[0]
 	if len(func_list) != 2:
-		print_error_message(f'   Error {error_index}: syntax error')
+		if func_name in variables:
+			pattern = r'\b[a-zA-Z]+\b'
+			match = re.search(pattern, variables[func_name])
+			print(f'   {eval(variables[func_name].replace(match.group(0), str(variables.get(func_var_name.lower(), 0))))}')
+		else:
+			print_error_message(f'   Error {error_index}: syntax error')
 		return
 
 	func = func_list[1].strip()
-	pattern = r'\b[a-z]+\b'
-	matches = re.findall(pattern, func.lower())
+	pattern = r'\b[a-zA-Z]+\b'
+	matches = re.findall(pattern, func)
 	for var in matches:
-		if var != func_var_name and var not in variables and var != 'i':
-			print_error_message(f'   Error {error_index}: syntax error')
-			return
-		elif var in variables:
-			func = func.replace(var, str(variables[var]))
+		if var != func_var_name and var != 'i':
+			func = func.replace(var, str(variables.get(var.lower(), 0)))
 	pattern = rf'([0-9]+)({func_var_name})'
 	replacement = r'\1 * \2'
 	func = re.sub(pattern, replacement, func)
-	pattern = r'\s*[-+*/]\s*'
+	pattern = r'\s\-*([-+*/])\s*'
 	replacement = r' \1 '
 	func = re.sub(pattern, replacement, func)
-	
+	variables[func_name] = func
 	print(f'   {func}')
 
 
@@ -277,10 +285,15 @@ def process_variable_assignment(user_input: str) -> None:
 		Returns:
 			None
     """
+	# try:
 	global error_index
+	if user_input == 'variables':
+		for key, value in variables.items():
+			print(f'   {key}-> {value}')
+		return
 	if '=' not in user_input and evaluate_string_or_number_or_matrice(user_input):
 		return
-	
+
 	var_list: list[str] = user_input.strip().split('=')
 	pattern: str = r'^[a-zA-Z]+\(([a-zA-Z]+)\)$'
 	match: Match[str] | None = re.match(pattern, var_list[0].strip())
@@ -301,6 +314,16 @@ def process_variable_assignment(user_input: str) -> None:
 	if first_item == 'i':
 		print_error_message(f'   Error {error_index}: \'i\' cannot be assigned or used as a variable name.')
 		return
+	elif '(' and ')' in first_item:
+		pattern: str = r'^([a-zA-Z]+)\(([a-zA-Z]+)\)$'
+		match: Match[str] | None = re.match(pattern, first_item)
+		if match.group(1).lower() in variables:
+			pattern = r'\b[a-zA-Z]+\b'
+			var_match = re.search(pattern, variables[match.group(1).lower()])
+			first_item = str(eval(variables[match.group(1).lower()].replace(var_match.group(0), str(variables.get(match.group(2).lower(), 0)))))
+		else:
+			print_error_message(f'   Error {error_index}: value error')
+			return
 	elif not first_item.isalpha() and not (is_integer(first_item) or \
 	is_float(first_item)) and not 'i' in first_item and not is_valid_matrice(first_item) and not is_matrice:
 		print_error_message(f'   Error {error_index}: syntax error')
@@ -320,15 +343,15 @@ def process_variable_assignment(user_input: str) -> None:
 		last_var = var
 
 		if first_item.isalpha():
-			variables[var] = variables.get(first_item, 0)
+			variables[var.lower()] = variables.get(first_item.lower(), 0)
 		elif is_integer(first_item) or is_float(first_item):
-			variables[var] = int(first_item) if is_integer(first_item) else float(first_item)
+			variables[var.lower()] = int(first_item) if is_integer(first_item) else float(first_item)
 		elif 'i' in first_item:
-			variables[var] = first_item.replace(' ', '') if not any(op in first_item for op in {'+', '-', '*', '/', '%', '^'}) else first_item
+			variables[var.lower()] = first_item.replace(' ', '') if not any(op in first_item for op in {'+', '-', '*', '/', '%', '^'}) else first_item
 		elif is_valid_matrice(first_item) or is_matrice:
 			matrice = ''
 			if is_matrice:
-				variables[var] = first_item
+				variables[var.lower()] = first_item
 				print(f'   {first_item}')
 				break
 			is_matrice = True
@@ -338,11 +361,13 @@ def process_variable_assignment(user_input: str) -> None:
 				el = re.sub(pattern, replacement, el)
 				matrice += el
 				print(f'   {el}')
-			variables[var] = matrice
+			variables[var.lower()] = matrice
 		else:
 			print_error_message(f'   Error {error_index}: syntax error')
 			return
 	if last_var and not is_matrice:
-		print(f'   {variables[var]}')
+		print(f'   {variables[var.lower()]}')
 	elif not is_matrice:
 		print_error_message(f'   Error {error_index}: syntax error')
+	# except Exception:
+	# 	print_error_message(f'   Error {error_index}: An error occurred')

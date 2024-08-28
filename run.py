@@ -15,7 +15,7 @@ def main():
 			user_input: str = input(">> ")
 			if user_input == 'history':
 				for count, el in enumerate(history):
-					print(f'>> {count}-> {el}')
+					print(f'   {count}-> {el}')
 				continue
 			history.append(user_input)
 			if not user_input.strip():
