@@ -5,7 +5,7 @@ from utils import *
 import numpy
 import json
 
-variables: dict[str, int | float] = {}
+variables: dict[str, Any] = {}
 error_index: int = 0
 
 
@@ -52,6 +52,34 @@ def extract_complex_numbers(expression: str) -> str | bool :
 	except Exception:
 		print_error_message(f'   Error {error_index}: syntax error')
 		return False
+
+
+def evaluate_operation(left_value: int | float, operator: str, right_value: int | float) -> int | float:
+	"""
+		Evaluates a basic mathematical operation between two numerical values.
+
+		Args:
+			left_value (int | float): The first operand in the operation.
+			operator (str): The mathematical operator as a string ('^', '*', '/', '%', '+', or '-').
+			right_value (int | float): The second operand in the operation.
+
+		Returns:
+			int | float: The result of applying the specified operation between the two operands.
+    """
+	result: int | float
+	if operator == '^':
+		result = left_value ** right_value
+	elif operator == '*':
+		result = left_value * right_value
+	elif operator == '/':
+		result = left_value / right_value
+	elif operator == '%':
+		result = left_value % right_value
+	elif operator == '+':
+		result = left_value + right_value
+	elif operator == '-':
+		result = left_value - right_value
+	return result
 
 
 def extract_and_solve(expression: str, operator: str) -> str:
@@ -101,19 +129,7 @@ def extract_and_solve(expression: str, operator: str) -> str:
 		print_error_message(f'   Error {error_index}: syntax error')
 		return 'Error'
 
-	result: int | float
-	if operator == '^':
-		result = left_value ** right_value
-	elif operator == '*':
-		result = left_value * right_value
-	elif operator == '/':
-		result = left_value / right_value
-	elif operator == '%':
-		result = left_value % right_value
-	elif operator == '+':
-		result = left_value + right_value
-	elif operator == '-':
-		result = left_value - right_value
+	result: int | float = evaluate_operation(left_value, operator, right_value)
 	return expression.replace(operation, str(result))
 
 
@@ -133,7 +149,7 @@ def handle_operator(expression: str) -> bool | str:
 			np_matrice = numpy.array(json.loads(matrices[0]))
 			for matrice in matrices[1:]:
 				np_matrice = numpy.array(json.loads(matrice.strip())) * np_matrice
-			result = ''
+			result: str = ''
 			for row in np_matrice:
 				formatted_row = '[ ' + ' , '.join(map(str, row)) + ' ]'
 				if result:
@@ -160,7 +176,7 @@ def handle_operator(expression: str) -> bool | str:
 	pattern = r'\([^)]*\)'
 	parentheses_content = re.findall(pattern, expression)
 	for content in parentheses_content:
-		expression = expression.replace(content, handle_operator(content[1:-1]))
+		expression = expression.replace(content, str(handle_operator(content[1:-1])))
 	def solve_operation(expression) -> str:
 		"""
 			Recursively evaluates mathematical operations in the expression.
@@ -198,7 +214,7 @@ def handle_operator(expression: str) -> bool | str:
 			return expression
 		return solve_operation(expression)
 
-	result: str = solve_operation(expression)
+	result = solve_operation(expression)
 	if result == "Error":
 		return False
 	return result
@@ -241,6 +257,15 @@ def evaluate_string_or_number_or_matrice(user_input: str) -> bool:
 
 
 def is_valid_matrice(expression: str) -> bool:
+	"""
+		Checks if a given string is a valid matrix or a valid matrix multiplication expression.
+
+		Args:
+		    expression (str): The string expression to validate.
+
+		Returns:
+		    bool: True if the expression is a valid matrix or matrix multiplication expression, False otherwise.
+    """
 	expression = expression.replace(' ', '')
 	matrice_pattern = r'\[\[\d+(,\d+)*\](;\[\d+(,\d+)*\])*\]'
 	matrice_multip_pattern = matrice_pattern + r'\s*\*\*\s*' + matrice_pattern
@@ -248,12 +273,29 @@ def is_valid_matrice(expression: str) -> bool:
 
 
 def handle_function(func_list: list[str], func_var_name: str) -> None:
-	func_name = func_list[0].lower().split('(')[0]
+	"""
+		Processes a mathematical function, evaluates it with the given variable, 
+		and prints the result or handles errors.
+
+		Args:
+			func_list (list[str]): A list containing the function name and its expression.
+			func_var_name (str): The variable name used within the function expression.
+
+		Returns:
+			None: The function prints the evaluated result or an error message.
+    """
+	func_name: str = func_list[0].lower().split('(')[0]
 	if len(func_list) != 2:
 		if func_name in variables:
-			pattern = r'\b[a-zA-Z]+\b'
-			match = re.search(pattern, variables[func_name])
-			print(f'   {eval(variables[func_name].replace(match.group(0), str(variables.get(func_var_name.lower(), 0))))}')
+			pattern: str = r'\b[a-zA-Z]+\b'
+			func_content: str = str(variables[func_name])
+			match: Match[str] | None = re.search(pattern, func_content)
+			if match:
+				if is_integer(func_var_name):
+					replaced_content = func_content.replace(match.group(0), func_var_name)
+				else:
+					replaced_content = func_content.replace(match.group(0), str(variables.get(func_var_name.lower(), 0)))
+				print(f'   {eval(replaced_content)}')
 		else:
 			print_error_message(f'   Error {error_index}: syntax error')
 		return
@@ -267,9 +309,63 @@ def handle_function(func_list: list[str], func_var_name: str) -> None:
 	pattern = rf'([0-9]+)({func_var_name})'
 	replacement = r'\1 * \2'
 	func = re.sub(pattern, replacement, func)
-	pattern = r'\s\-*([-+*/])\s*'
-	replacement = r' \1 '
-	func = re.sub(pattern, replacement, func)
+	tokens = re.findall(r'\d+|\w+|[-+*/^%]', func)
+	variable_tokens: list[str] = []
+	while len(tokens) > 1:
+		if tokens[0] in {'+', '-'}:
+			if tokens[0] == '+':
+				tokens.pop(0)
+				continue
+			elif tokens[0] == '-' and not tokens[1].isalpha():
+				tokens.pop(0) 
+				tokens[0] = '-' + tokens[0]
+				continue
+
+		if any(op in tokens for op in ['^', '*', '/', '%']):
+			if '^' in tokens:
+				for i in range(len(tokens)):
+					if '^' == tokens[i]:
+						index = i
+						break
+			elif any(op in tokens for op in ['*', '/', '%']):
+				for i in range(len(tokens)):
+					if tokens[i] in '*/':
+						index = i
+						break
+			if tokens[index - 1].isalpha() or tokens[index + 1].isalpha():
+				subtractor = 1
+				if index - 2 >= 0:
+					subtractor = 2
+					variable_tokens.append(tokens.pop(index - subtractor))
+				else:
+					variable_tokens.append('+')
+				variable_tokens.append(tokens.pop(index - subtractor))
+				variable_tokens.append(tokens.pop(index - subtractor))
+				variable_tokens.append(tokens.pop(index - subtractor))
+				continue
+		else:
+			index = 1 if tokens[1] in {'+', '-', '*', '/', '%', '^'} else 0
+
+			if tokens[index - 1].isalpha() and index != 0:
+				if index - 2 >= 0:
+					variable_tokens.append(tokens.pop(index - 2))
+				else:
+					variable_tokens.append('+')
+				variable_tokens.append(tokens.pop(index - 1))
+				continue
+			elif tokens[index + 1].isalpha():
+				variable_tokens.append(tokens.pop(index))
+				variable_tokens.append(tokens.pop(index))
+				continue
+
+		left_value: int | float = int(tokens[index - 1]) if is_integer(tokens[index - 1]) else float(tokens[index - 1])
+		operator: str = tokens[index]
+		right_value: int | float = int(tokens[index + 1]) if is_integer(tokens[index + 1]) else float(tokens[index + 1])
+
+		result: int | float = evaluate_operation(left_value, operator, right_value)
+
+		tokens = tokens[:index - 1] + [str(result)] + tokens[index + 2:]
+	func = f'{" ".join(tokens)} {" ".join(variable_tokens)}'
 	variables[func_name] = func
 	print(f'   {func}')
 
@@ -285,89 +381,92 @@ def process_variable_assignment(user_input: str) -> None:
 		Returns:
 			None
     """
-	# try:
-	global error_index
-	if user_input == 'variables':
-		for key, value in variables.items():
-			print(f'   {key}-> {value}')
-		return
-	if '=' not in user_input and evaluate_string_or_number_or_matrice(user_input):
-		return
-
-	var_list: list[str] = user_input.strip().split('=')
-	pattern: str = r'^[a-zA-Z]+\(([a-zA-Z]+)\)$'
-	match: Match[str] | None = re.match(pattern, var_list[0].strip())
-	if (bool(match) == True):
-		return handle_function(var_list, match.group(1))
-
-	var_list.reverse()
-	first_item: Any = var_list[0].strip()
-
-	is_matrice = False
-	if any(operator in first_item for operator in {'+', '-', '*', '/', '%', '^'}):
-		if '**' in first_item:
-			is_matrice = True
-		first_item = handle_operator(first_item)
-		if False is first_item:
+	try:
+		global error_index
+		if user_input == 'variables':
+			for key, value in variables.items():
+				print(f'   {key}-> {value}')
+			return
+		if '=' not in user_input and evaluate_string_or_number_or_matrice(user_input):
 			return
 
-	if first_item == 'i':
-		print_error_message(f'   Error {error_index}: \'i\' cannot be assigned or used as a variable name.')
-		return
-	elif '(' and ')' in first_item:
-		pattern: str = r'^([a-zA-Z]+)\(([a-zA-Z]+)\)$'
-		match: Match[str] | None = re.match(pattern, first_item)
-		if match.group(1).lower() in variables:
-			pattern = r'\b[a-zA-Z]+\b'
-			var_match = re.search(pattern, variables[match.group(1).lower()])
-			first_item = str(eval(variables[match.group(1).lower()].replace(var_match.group(0), str(variables.get(match.group(2).lower(), 0)))))
-		else:
-			print_error_message(f'   Error {error_index}: value error')
-			return
-	elif not first_item.isalpha() and not (is_integer(first_item) or \
-	is_float(first_item)) and not 'i' in first_item and not is_valid_matrice(first_item) and not is_matrice:
-		print_error_message(f'   Error {error_index}: syntax error')
-		return
-	
-	last_var: str | None = None
+		var_list: list[str] = user_input.strip().split('=')
+		pattern: str = r'^[a-zA-Z]+\(([a-zA-Z0-9]+)\)$'
+		match: Match[str] | None = re.match(pattern, var_list[0].strip())
+		if match and (bool(match) == True):
+			return handle_function(var_list, match.group(1))
 
-	for var in var_list[1:]:
-		var = var.strip().lower()
-		if var == 'i':
+		var_list.reverse()
+		first_item: Any = var_list[0].strip()
+
+		is_matrice = False
+		if any(operator in first_item for operator in {'+', '-', '*', '/', '%', '^'}):
+			if '**' in first_item:
+				is_matrice = True
+			first_item = handle_operator(first_item)
+			if False is first_item:
+				return
+
+		if first_item == 'i':
 			print_error_message(f'   Error {error_index}: \'i\' cannot be assigned or used as a variable name.')
 			return
-		elif not var.isalpha():
+		elif '(' and ')' in first_item:
+			pattern = r'^([a-zA-Z]+)\(([a-zA-Z0-9]+)\)$'
+			match = re.match(pattern, first_item)
+			if match and match.group(1).lower() in variables:
+				pattern = r'\b[a-zA-Z]+\b'
+				var_match = re.search(pattern, variables[match.group(1).lower()])
+				if var_match and is_integer(match.group(2)):
+					first_item = str(eval(variables[match.group(1).lower()].replace(var_match.group(0), match.group(2))))
+				elif var_match:
+					first_item = str(eval(variables[match.group(1).lower()].replace(var_match.group(0), str(variables.get(match.group(2).lower(), 0)))))
+			else:
+				print_error_message(f'   Error {error_index}: value error')
+				return
+		elif not first_item.isalpha() and not (is_integer(first_item) or \
+		is_float(first_item)) and not 'i' in first_item and not is_valid_matrice(first_item) and not is_matrice:
 			print_error_message(f'   Error {error_index}: syntax error')
 			return
 
-		last_var = var
+		last_var: str | None = None
 
-		if first_item.isalpha():
-			variables[var.lower()] = variables.get(first_item.lower(), 0)
-		elif is_integer(first_item) or is_float(first_item):
-			variables[var.lower()] = int(first_item) if is_integer(first_item) else float(first_item)
-		elif 'i' in first_item:
-			variables[var.lower()] = first_item.replace(' ', '') if not any(op in first_item for op in {'+', '-', '*', '/', '%', '^'}) else first_item
-		elif is_valid_matrice(first_item) or is_matrice:
-			matrice = ''
-			if is_matrice:
-				variables[var.lower()] = first_item
-				print(f'   {first_item}')
-				break
-			is_matrice = True
-			for el in first_item.replace(' ', '')[1:-1].split(';'):
-				pattern = r'(\d+)'
-				replacement = r' \1 '
-				el = re.sub(pattern, replacement, el)
-				matrice += el
-				print(f'   {el}')
-			variables[var.lower()] = matrice
-		else:
+		for var in var_list[1:]:
+			var = var.strip().lower()
+			if var == 'i':
+				print_error_message(f'   Error {error_index}: \'i\' cannot be assigned or used as a variable name.')
+				return
+			elif not var.isalpha():
+				print_error_message(f'   Error {error_index}: syntax error')
+				return
+
+			last_var = var
+
+			if first_item.isalpha():
+				variables[var.lower()] = variables.get(first_item.lower(), 0)
+			elif is_integer(first_item) or is_float(first_item):
+				variables[var.lower()] = int(first_item) if is_integer(first_item) else float(first_item)
+			elif 'i' in first_item:
+				variables[var.lower()] = first_item.replace(' ', '') if not any(op in first_item for op in {'+', '-', '*', '/', '%', '^'}) else first_item
+			elif is_valid_matrice(first_item) or is_matrice:
+				matrice = ''
+				if is_matrice:
+					variables[var.lower()] = first_item
+					print(f'   {first_item}')
+					break
+				is_matrice = True
+				for el in first_item.replace(' ', '')[1:-1].split(';'):
+					pattern = r'(\d+)'
+					replacement = r' \1 '
+					el = re.sub(pattern, replacement, el)
+					matrice += el
+					print(f'   {el}')
+				variables[var.lower()] = matrice
+			else:
+				print_error_message(f'   Error {error_index}: syntax error')
+				return
+		if last_var and not is_matrice:
+			print(f'   {variables[var.lower()]}')
+		elif not is_matrice:
 			print_error_message(f'   Error {error_index}: syntax error')
-			return
-	if last_var and not is_matrice:
-		print(f'   {variables[var.lower()]}')
-	elif not is_matrice:
-		print_error_message(f'   Error {error_index}: syntax error')
-	# except Exception:
-	# 	print_error_message(f'   Error {error_index}: An error occurred')
+	except Exception:
+	 	print_error_message(f'   Error {error_index}: An error occurred')
