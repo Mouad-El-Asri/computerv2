@@ -309,8 +309,13 @@ def handle_function(func_list: list[str], func_var_name: str) -> None:
 	pattern = rf'([0-9]+)({func_var_name})'
 	replacement = r'\1 * \2'
 	func = re.sub(pattern, replacement, func)
-	tokens = re.findall(r'\d+|\w+|[-+*/^%]', func)
+	if any(bracket in func for bracket in ['(', ')']):
+		variables[func_name] = func
+		print(f'   {func}')
+		return 
+	tokens: list[str] = re.findall(r'\d+|\w+|[-+*/^%]', func)
 	variable_tokens: list[str] = []
+	variable_tokens_is_not_empty = False
 	while len(tokens) > 1:
 		if tokens[0] in {'+', '-'}:
 			if tokens[0] == '+':
@@ -333,17 +338,22 @@ def handle_function(func_list: list[str], func_var_name: str) -> None:
 						index = i
 						break
 			if tokens[index - 1].isalpha() or tokens[index + 1].isalpha():
+				if '^' == tokens[i]:
+					break
+				variable_tokens_is_not_empty = True
 				subtractor = 1
 				if index - 2 >= 0:
 					subtractor = 2
 					variable_tokens.append(tokens.pop(index - subtractor))
-				else:
+				elif '-' not in tokens[index - 1]:
 					variable_tokens.append('+')
 				variable_tokens.append(tokens.pop(index - subtractor))
 				variable_tokens.append(tokens.pop(index - subtractor))
 				variable_tokens.append(tokens.pop(index - subtractor))
 				continue
 		else:
+			if variable_tokens_is_not_empty:
+				break
 			index = 1 if tokens[1] in {'+', '-', '*', '/', '%', '^'} else 0
 
 			if tokens[index - 1].isalpha() and index != 0:
@@ -365,6 +375,8 @@ def handle_function(func_list: list[str], func_var_name: str) -> None:
 		result: int | float = evaluate_operation(left_value, operator, right_value)
 
 		tokens = tokens[:index - 1] + [str(result)] + tokens[index + 2:]
+	if not tokens and variable_tokens[0] == '+':
+		variable_tokens.pop(0)
 	func = f'{" ".join(tokens)} {" ".join(variable_tokens)}'
 	variables[func_name] = func
 	print(f'   {func}')
@@ -387,10 +399,14 @@ def process_variable_assignment(user_input: str) -> None:
 			for key, value in variables.items():
 				print(f'   {key}-> {value}')
 			return
-		if '=' not in user_input and evaluate_string_or_number_or_matrice(user_input):
+		elif '=' not in user_input and evaluate_string_or_number_or_matrice(user_input):
 			return
 
 		var_list: list[str] = user_input.strip().split('=')
+		if len(var_list) == 2 and var_list[1].strip() == '?':
+			process_variable_assignment(var_list[0].strip())
+			return
+
 		pattern: str = r'^[a-zA-Z]+\(([a-zA-Z0-9]+)\)$'
 		match: Match[str] | None = re.match(pattern, var_list[0].strip())
 		if match and (bool(match) == True):
