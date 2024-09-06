@@ -517,5 +517,4 @@ def process_variable_assignment(user_input: str) -> None:
 		elif not is_matrice:
 			print_error_message(f'   Error {error_index}: syntax error')
 	except Exception as e:
-		print("Hi", e)
-	 	# print_error_message(f'   Error {error_index}: An error occurred')
+	 	print_error_message(f'   Error {error_index}: An error occurred')
