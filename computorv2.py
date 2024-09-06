@@ -4,6 +4,7 @@ from typing import Any, Match
 from utils import *
 import numpy
 import json
+from computorv1 import reduced_form, solve_polynomial
 
 variables: dict[str, Any] = {}
 error_index: int = 0
@@ -272,7 +273,7 @@ def is_valid_matrice(expression: str) -> bool:
 	return bool(re.fullmatch(matrice_pattern, expression)) or bool(re.fullmatch(matrice_multip_pattern, expression))
 
 
-def handle_function(func_list: list[str], func_var_name: str) -> None:
+def handle_function(func_list: list[str] | str, func_var_name: str) -> None | str:
 	"""
 		Processes a mathematical function, evaluates it with the given variable, 
 		and prints the result or handles errors.
@@ -284,6 +285,10 @@ def handle_function(func_list: list[str], func_var_name: str) -> None:
 		Returns:
 			None: The function prints the evaluated result or an error message.
     """
+	is_computation = False
+	if isinstance(func_list, str):
+		func_list = func_list.split()
+		is_computation = True
 	func_name: str = func_list[0].lower().split('(')[0]
 	if len(func_list) != 2:
 		if func_name in variables:
@@ -295,6 +300,9 @@ def handle_function(func_list: list[str], func_var_name: str) -> None:
 					replaced_content = func_content.replace(match.group(0), func_var_name)
 				else:
 					replaced_content = func_content.replace(match.group(0), str(variables.get(func_var_name.lower(), 0)))
+				replaced_content = replaced_content.replace('^', '**')
+				if (is_computation):
+					return str(eval(replaced_content))
 				print(f'   {eval(replaced_content)}')
 		else:
 			print_error_message(f'   Error {error_index}: syntax error')
@@ -312,7 +320,18 @@ def handle_function(func_list: list[str], func_var_name: str) -> None:
 	if any(bracket in func for bracket in ['(', ')']):
 		variables[func_name] = func
 		print(f'   {func}')
-		return 
+		return
+
+	if func_name in variables and func[-1] == '?':
+		polynomial__equation: str = f'{variables[func_name]} = {func[:-1]}'
+		equation_reduced_form: str = reduced_form(polynomial__equation.upper())
+		print(f'   Reduced form: {equation_reduced_form}')
+		solve_polynomial(equation_reduced_form)
+		return
+	elif func_name not in variables and func[-1] == '?':
+		print_error_message(f'   Error {error_index}: Enter a valid Polynomial equation!')
+		return
+
 	tokens: list[str] = re.findall(r'\d+|\w+|[-+*/^%]', func)
 	variable_tokens: list[str] = []
 	variable_tokens_is_not_empty = False
@@ -395,22 +414,35 @@ def process_variable_assignment(user_input: str) -> None:
     """
 	try:
 		global error_index
+
+		var_list: list[str] = user_input.strip().split('=')
+		pattern: str = r'([a-zA-Z]+)\(([a-zA-Z0-9]+)\)'
+		matches: Match[str] | None = re.findall(pattern, var_list[0].strip())
+
 		if user_input == 'variables':
 			for key, value in variables.items():
 				print(f'   {key}-> {value}')
 			return
-		elif '=' not in user_input and evaluate_string_or_number_or_matrice(user_input):
+		elif '=' not in user_input and not matches and evaluate_string_or_number_or_matrice(user_input):
 			return
 
-		var_list: list[str] = user_input.strip().split('=')
 		if len(var_list) == 2 and var_list[1].strip() == '?':
 			process_variable_assignment(var_list[0].strip())
 			return
 
-		pattern: str = r'^[a-zA-Z]+\(([a-zA-Z0-9]+)\)$'
-		match: Match[str] | None = re.match(pattern, var_list[0].strip())
-		if match and (bool(match) == True):
-			return handle_function(var_list, match.group(1))
+		if len(matches) == 1:
+			return handle_function(var_list, matches[0][1])
+		elif len(matches) > 1:
+			result: str = var_list[0]
+			for match in matches:
+				func_name, arg = match
+				func_result: str = handle_function(f'{func_name}({arg})', arg)
+				if not func_result:
+					return
+				result = result.strip().replace(f'{func_name}({arg})', func_result)
+			evaluate_string_or_number_or_matrice(result)
+			return
+			
 
 		var_list.reverse()
 		first_item: Any = var_list[0].strip()
@@ -484,5 +516,6 @@ def process_variable_assignment(user_input: str) -> None:
 			print(f'   {variables[var.lower()]}')
 		elif not is_matrice:
 			print_error_message(f'   Error {error_index}: syntax error')
-	except Exception:
-	 	print_error_message(f'   Error {error_index}: An error occurred')
+	except Exception as e:
+		print("Hi", e)
+	 	# print_error_message(f'   Error {error_index}: An error occurred')
